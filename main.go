@@ -20,9 +20,22 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 	"github.com/line/line-bot-sdk-go/v7/linebot"
 )
+
+type IndexData struct {
+	Title string
+	Content string
+}
+
+func testPage(c *gin.Context) {
+	data := new(IndexData)
+	data.Title = "測試頁面"
+	data.Content = "Mark的測試頁面"
+	c.HTML(http.StatusOK, "index.html", data)
+}
 
 func main() {
 	godotenv.Load()
@@ -35,17 +48,22 @@ func main() {
 		log.Fatal(err)
 	}
 
+	server := gin.Default()
+	server.LoadHTMLGlob("template/*")
+	server.GET("/", testPage)
+
+
 	// Setup HTTP Server for receiving requests from LINE platform
-	http.HandleFunc("/callback", func(w http.ResponseWriter, req *http.Request) {
-		events, err := bot.ParseRequest(req)
+	server.POST("/callback", func(c *gin.Context) {
+		events, err := bot.ParseRequest(c.Request)
+
 		if err != nil {
 			if err == linebot.ErrInvalidSignature {
-				w.WriteHeader(400)
-			} else {
-				w.WriteHeader(500)
+					log.Fatal(err)
+				}
+				return
 			}
-			return
-		}
+
 		for _, event := range events {
 			if event.Type == linebot.EventTypeMessage {
 				switch message := event.Message.(type) {
@@ -63,9 +81,6 @@ func main() {
 			}
 		}
 	})
-	// This is just sample code.
-	// For actual use, you must support HTTPS by using `ListenAndServeTLS`, a reverse proxy or something else.
-	if err := http.ListenAndServe(":"+os.Getenv("PORT"), nil); err != nil {
-		log.Fatal(err)
-	}
+
+	server.Run(":"+os.Getenv("PORT"))
 }
